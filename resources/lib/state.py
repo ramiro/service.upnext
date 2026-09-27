@@ -3,6 +3,8 @@
 
 from __future__ import absolute_import, division, unicode_literals
 
+import re
+
 import api
 import constants
 import upnext
@@ -82,6 +84,39 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
         except Exception:
             pass
         return None
+
+    @staticmethod
+    def _normalise_show_title(title):
+        """Return a normalised show title for Kodi library lookup."""
+        if not title:
+            return title
+
+        title = re.sub(
+            r'\[/?(?:COLOR(?: [^\]]+)?)\]|\[/?[BI]\]',
+            '',
+            title,
+            flags=re.IGNORECASE
+        )
+        return re.sub(r'\s+', ' ', title).strip()
+
+    @classmethod
+    def _get_tvshowid_with_fallbacks(cls, title):
+        """Return tvshowid using original and normalised titles."""
+        if not title:
+            return constants.UNDEFINED
+
+        tvshowid = api.get_tvshowid(title)
+        if tvshowid != constants.UNDEFINED:
+            return tvshowid
+
+        normalised_title = cls._normalise_show_title(title)
+        if normalised_title and normalised_title != title:
+            cls.log('Retrying library lookup with normalised showtitle "{0}"'.format(
+                normalised_title
+            ), utils.LOGINFO)
+            return api.get_tvshowid(normalised_title)
+
+        return constants.UNDEFINED
 
     def reset(self):
         self.__init__(reset=True)  # pylint: disable=unnecessary-dunder-call
@@ -424,11 +459,14 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
             if not tmdb_id:
                 tmdb_id = cls._get_tmdb_from_trakt_prop()
             if not tmdb_id and SETTINGS.enable_tmdbhelper_fallback:
-            # Try to get TMDB ID from plugin URL or by searching
-                from tmdb_helper import TMDb
+                # Try to get TMDB ID from plugin URL or by searching
+                from tmdb_helper import TMDb, tmdb_helper_is_available
                 title = current_video.get('title', '')
                 year = utils.get_int(current_video, 'year')
-                if title:
+                if not tmdb_helper_is_available():
+                    cls.log('Skipping TMDb Helper movie lookup; helper unavailable',
+                            utils.LOGWARNING)
+                elif title:
                     tmdb_id = TMDb().get_tmdb_id(
                         tmdb_type='movie', query=title, year=year if year else None
                     )
@@ -448,6 +486,30 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
         season = utils.get_int(current_video, 'season')
         episode = utils.get_int(current_video, 'episode')
 
+        plugin_url = None
+        addon_id = None
+        supported_addons = {constants.ADDON_ID, constants.TMDBH_ADDON_ID}
+        params_to_replace = ('player', 'tmdb_id', 'tmdb_type', 'showtitle',
+                             'season', 'episode')
+        for plugin_url_type in ('mediapath', 'file'):
+            _plugin_url = current_video.get(plugin_url_type, '')
+            if (_plugin_url == plugin_url
+                    or not _plugin_url.startswith('plugin://')):
+                continue
+            plugin_url = _plugin_url
+            parsed_addon_id, _, addon_args = utils.parse_url(plugin_url)
+            for param in params_to_replace:
+                value = addon_args.get(param, '')
+                if value in values_to_ignore:
+                    continue
+                current_video[param] = value
+            if addon_id is None and parsed_addon_id not in supported_addons:
+                addon_id = parsed_addon_id
+
+        title = current_video.get('showtitle') or title
+        season = utils.get_int(current_video, 'season', season)
+        episode = utils.get_int(current_video, 'episode', episode)
+
         # Fallback to play_info item data if empty (for plugins)
         if not title or constants.UNDEFINED in {season, episode}:
             play_item = play_info.get('item', {})
@@ -456,41 +518,25 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
                 season = utils.get_int(play_item, 'season', season)
             if episode == constants.UNDEFINED:
                 episode = utils.get_int(play_item, 'episode', episode)
-        
-        if not title or constants.UNDEFINED in {season, episode}:
-            return None
 
-        plugin_url = None
-        addon_id = None
-        supported_addons = {constants.ADDON_ID, constants.TMDBH_ADDON_ID}
-        params_to_replace = ('player', 'tmdb_id', 'season', 'episode')
-        for plugin_url_type in ('mediapath', 'file'):
-            _plugin_url = current_video.get(plugin_url_type, '')
-            if (_plugin_url == plugin_url
-                    or not _plugin_url.startswith('plugin://')):
-                continue
-            plugin_url = _plugin_url
-            addon_id, _, addon_args = utils.parse_url(plugin_url)
-            if addon_id in supported_addons:
-                addon_id = None
-            else:
-                break
-            for param in params_to_replace:
-                value = addon_args.get(param, '')
-                if value in values_to_ignore:
-                    continue
-                current_video[param] = value
+        if not title or constants.UNDEFINED in {season, episode}:
+            cls.log('Skipping plugin fallback; incomplete episode metadata for "{0}"'
+                    .format(title or current_video.get('label', '')),
+                    utils.LOGWARNING)
+            return None
 
         if tvshowid == constants.UNDEFINED or plugin_url:
             # Video plugins can provide a plugin specific tvshowid. Search Kodi
             # library for tvshow title instead.
-            tvshowid = api.get_tvshowid(title)
+            tvshowid = cls._get_tvshowid_with_fallbacks(title)
         # Now playing show not found in Kodi library
         if tvshowid == constants.UNDEFINED:
             if SETTINGS.enable_tmdbhelper_fallback:
                 return cls._get_tmdb_now_playing(
                     current_video, title, season, episode, addon_id
                 )
+            cls.log('Skipping TMDb Helper fallback; fallback disabled by settings',
+                    utils.LOGDEBUG)
             return None
         # Use found tvshowid for library integrated plugins e.g. Emby,
         # Jellyfin, Plex, etc.
@@ -513,9 +559,21 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
     @staticmethod
     def _get_tmdb_now_playing(current_video, title, season, episode, addon_id):
         if not SETTINGS.import_tmdbhelper:
+            utils.log('Skipping TMDb Helper fallback; helper import disabled',
+                      name='UpNextState', level=utils.LOGDEBUG)
             return None
 
-        from tmdb_helper import TMDb, get_item_details, get_next_episodes
+        from tmdb_helper import (
+            TMDb,
+            get_item_details,
+            get_next_episodes,
+            tmdb_helper_is_available,
+        )
+
+        if not tmdb_helper_is_available():
+            utils.log('Skipping TMDb Helper fallback; helper unavailable',
+                      name='UpNextState', level=utils.LOGWARNING)
+            return None
 
         utils.log('Getting TMDB now playing: title={0}, season={1}, episode={2}'.format(
             title, season, episode), name='UpNextState', level=utils.LOGINFO)
@@ -535,19 +593,23 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
             return None
 
         current_details = get_item_details('tv', tmdb_id, season, episode)
+        if not current_details:
+            utils.log('TMDB item details not found', name='UpNextState',
+                      level=utils.LOGERROR)
+            return None
         episodes = get_next_episodes(tmdb_id, season, episode)
-        
+
         # Return None if no episodes found
         if not episodes:
             utils.log('No episodes found', name='UpNextState', level=utils.LOGERROR)
             return None
-        
+
         player_name = current_video.get('player', addon_id)
         current_infolabels = getattr(current_details, 'infolabels', {}) or {}
         current_art = getattr(current_details, 'art', {}) or {}
         next_infolabels = getattr(episodes[0], 'infolabels', {}) or {}
         next_art = getattr(episodes[0], 'art', {}) or {}
-        
+
         upnext.send_signal(
             sender='UpNext.TMDBHelper',
             upnext_info={
@@ -574,7 +636,16 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
         if not SETTINGS.import_tmdbhelper:
             return None
 
-        from tmdb_helper import get_item_details, get_next_movie
+        from tmdb_helper import (
+            get_item_details,
+            get_next_movie,
+            tmdb_helper_is_available,
+        )
+
+        if not tmdb_helper_is_available():
+            utils.log('Skipping TMDb Helper movie fallback; helper unavailable',
+                      name='UpNextState', level=utils.LOGWARNING)
+            return None
 
         current_details = get_item_details('movie', tmdb_id)
         if not current_details:

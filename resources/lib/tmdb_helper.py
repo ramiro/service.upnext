@@ -122,8 +122,25 @@ _TMDb = ClassImport(
     'TMDb',
 )
 
+
+def tmdb_helper_is_available():
+    """Return whether the wrapped TMDb Helper class is available."""
+
+    try:
+        return (
+            _TMDb is not object
+            and getattr(_TMDb, '_initialised', False)
+        )
+    except Exception:
+        return False
+
+
 class TMDb(_TMDb):  # pylint: disable=inherit-non-class,too-few-public-methods
     def __init__(self, *args, **kwargs):
+        if not tmdb_helper_is_available():
+            raise RuntimeError(
+                'TMDb Helper is not available for this Kodi installation'
+            )
         kwargs['api_key'] = TMDB_API_KEY
         super(TMDb, self).__init__(*args, **kwargs)
         try:
