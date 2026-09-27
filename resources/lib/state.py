@@ -467,6 +467,7 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
                     cls.log('Skipping TMDb Helper movie lookup; helper unavailable',
                             utils.LOGWARNING)
                 elif title:
+                    # pylint: disable-next=no-value-for-parameter
                     tmdb_id = TMDb().get_tmdb_id(
                         tmdb_type='movie', query=title, year=year if year else None
                     )
@@ -584,6 +585,7 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
             tmdb_id = UpNextState._get_tmdb_from_trakt_prop()
             utils.log('TMDB ID from Trakt property: {0}'.format(tmdb_id), name='UpNextState', level=utils.LOGINFO)
         if not tmdb_id:
+            # pylint: disable-next=no-value-for-parameter
             tmdb_id = TMDb().get_tmdb_id(
                 tmdb_type='tv', query=title, season=season, episode=episode
             )

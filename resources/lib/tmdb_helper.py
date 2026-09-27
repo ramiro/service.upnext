@@ -309,6 +309,7 @@ def get_next_movie(tmdb_id):
         return MovieDetails(api_data)
 
     try:
+        # pylint: disable-next=no-value-for-parameter
         tmdb = TMDb()
         movie_details = tmdb.get_response_json('movie', tmdb_id)
         if not movie_details:

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # GNU General Public License v2.0 (see COPYING or https://www.gnu.org/licenses/gpl-2.0.txt)
+# pylint: disable=protected-access
 
 from __future__ import absolute_import, division, unicode_literals
 
@@ -51,7 +52,9 @@ def test_library_now_playing_uses_plugin_metadata_and_normalised_title(monkeypat
         staticmethod(lambda *args, **kwargs: pytest.fail('TMDb fallback should not run'))
     )
 
-    result = state.UpNextState._get_library_now_playing({'item': {'showtitle': '[B]Example Show[/B]'}})
+    result = state.UpNextState._get_library_now_playing(
+        {'item': {'showtitle': '[B]Example Show[/B]'}}
+    )
 
     assert result['tvshowid'] == 77
     assert result['episodeid'] == 88
@@ -95,7 +98,9 @@ def test_library_now_playing_passes_native_tmdb_id_to_fallback(monkeypatch):
         staticmethod(fake_tmdb_fallback)
     )
 
-    result = state.UpNextState._get_library_now_playing({'item': {'showtitle': 'Elementum Show'}})
+    result = state.UpNextState._get_library_now_playing(
+        {'item': {'showtitle': 'Elementum Show'}}
+    )
 
     assert result == {'source': 'tmdb-fallback'}
     assert captured == {
@@ -114,6 +119,7 @@ def test_tmdb_wrapper_and_fallback_skip_when_helper_unavailable(monkeypatch):
     monkeypatch.setattr(SETTINGS, 'import_tmdbhelper', True)
 
     with pytest.raises(RuntimeError):
+        # pylint: disable-next=no-value-for-parameter
         tmdb_helper.TMDb()
 
     result = state.UpNextState._get_tmdb_now_playing(
