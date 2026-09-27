@@ -127,10 +127,10 @@ def tmdb_helper_is_available():
     """Return whether the wrapped TMDb Helper class is available."""
 
     try:
-        return (
-            _TMDb is not object
-            and getattr(_TMDb, '_initialised', False)
-        )
+        if _TMDb is object:
+            return False
+        initialised = getattr(_TMDb, '_initialised', None)
+        return initialised is None or initialised
     except Exception:
         return False
 

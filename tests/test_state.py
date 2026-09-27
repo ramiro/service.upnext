@@ -131,3 +131,12 @@ def test_tmdb_wrapper_and_fallback_skip_when_helper_unavailable(monkeypatch):
     )
 
     assert result is None
+
+
+def test_tmdb_helper_is_available_without_initialised_flag(monkeypatch):
+    class DummyTMDb(object):
+        pass
+
+    monkeypatch.setattr(tmdb_helper, '_TMDb', DummyTMDb)
+
+    assert tmdb_helper.tmdb_helper_is_available() is True
