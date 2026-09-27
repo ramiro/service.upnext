@@ -648,6 +648,8 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
     @staticmethod
     def _get_tmdb_movie_now_playing(current_video, tmdb_id):
         if not SETTINGS.import_tmdbhelper:
+            utils.log('Skipping TMDb Helper movie fallback; helper import disabled',
+                      name='UpNextState', level=utils.LOGDEBUG)
             return None
 
         from tmdb_helper import (
