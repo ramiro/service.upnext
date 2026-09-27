@@ -527,10 +527,12 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
                     utils.LOGWARNING)
             return None
 
+        library_tvshowid = constants.UNDEFINED
         if tvshowid == constants.UNDEFINED:
             # Video plugins can provide a plugin-specific or missing tvshowid.
             # Search Kodi library for tvshow title instead.
-            tvshowid = cls._get_tvshowid_with_fallbacks(title)
+            library_tvshowid = cls._get_tvshowid_with_fallbacks(title)
+            tvshowid = library_tvshowid
         # Now playing show not found in Kodi library
         if tvshowid == constants.UNDEFINED:
             if SETTINGS.enable_tmdbhelper_fallback:
@@ -551,11 +553,12 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
             details = api.get_episode_info(tvshowid, season, episode)
             if (not details and plugin_url
                     and original_tvshowid != constants.UNDEFINED):
-                fallback_tvshowid = cls._get_tvshowid_with_fallbacks(title)
-                if fallback_tvshowid not in (
+                if library_tvshowid == constants.UNDEFINED:
+                    library_tvshowid = cls._get_tvshowid_with_fallbacks(title)
+                if library_tvshowid not in (
                         constants.UNDEFINED,
                         original_tvshowid):
-                    tvshowid = fallback_tvshowid
+                    tvshowid = library_tvshowid
                     current_video['tvshowid'] = tvshowid
                     details = api.get_episode_info(tvshowid, season, episode)
             # Now playing episode not found in library
