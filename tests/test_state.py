@@ -113,6 +113,45 @@ def test_library_now_playing_passes_native_tmdb_id_to_fallback(monkeypatch):
     }
 
 
+def test_library_now_playing_keeps_valid_kodi_tvshowid(monkeypatch):
+    current_video = {
+        'type': 'episode',
+        'mediapath': 'plugin://plugin.video.emby/play?season=1&episode=2',
+        'file': '',
+        'tvshowid': 41,
+        'showtitle': 'Library Show',
+        'season': 1,
+        'episode': 2,
+        'episodeid': constants.UNDEFINED,
+    }
+
+    monkeypatch.setattr(state.api, 'get_now_playing',
+                        lambda properties, retry: current_video.copy())
+    monkeypatch.setattr(
+        state.api,
+        'get_tvshowid',
+        lambda title: pytest.fail('Kodi tvshow lookup should not run')
+    )
+    monkeypatch.setattr(
+        state.api,
+        'get_episode_info',
+        lambda tvshowid, season, episode: {
+            'episodeid': 99,
+            'tvshowid': tvshowid,
+            'season': season,
+            'episode': episode,
+            'showtitle': 'Library Show',
+        }
+    )
+
+    result = state.UpNextState._get_library_now_playing(
+        {'item': {'showtitle': 'Library Show'}}
+    )
+
+    assert result['tvshowid'] == 41
+    assert result['episodeid'] == 99
+
+
 def test_tmdb_wrapper_and_fallback_skip_when_helper_unavailable(monkeypatch):
     monkeypatch.setattr(tmdb_helper, 'tmdb_helper_is_available',
                         lambda: False)

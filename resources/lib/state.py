@@ -526,9 +526,9 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
                     utils.LOGWARNING)
             return None
 
-        if tvshowid == constants.UNDEFINED or plugin_url:
-            # Video plugins can provide a plugin specific tvshowid. Search Kodi
-            # library for tvshow title instead.
+        if tvshowid == constants.UNDEFINED:
+            # Video plugins can provide a plugin-specific or missing tvshowid.
+            # Search Kodi library for tvshow title instead.
             tvshowid = cls._get_tvshowid_with_fallbacks(title)
         # Now playing show not found in Kodi library
         if tvshowid == constants.UNDEFINED:
@@ -548,6 +548,13 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
                      or utils.get_int(current_video, 'id'))
         if episodeid == constants.UNDEFINED:
             details = api.get_episode_info(tvshowid, season, episode)
+            if (not details and plugin_url
+                    and current_video.get('tvshowid') != constants.UNDEFINED):
+                fallback_tvshowid = cls._get_tvshowid_with_fallbacks(title)
+                if fallback_tvshowid not in (constants.UNDEFINED, tvshowid):
+                    tvshowid = fallback_tvshowid
+                    current_video['tvshowid'] = tvshowid
+                    details = api.get_episode_info(tvshowid, season, episode)
             # Now playing episode not found in library
             if not details:
                 return None
