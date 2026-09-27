@@ -130,7 +130,10 @@ def tmdb_helper_is_available():
         if _TMDb is object:
             return False
         initialised = getattr(_TMDb, '_initialised', None)
-        return initialised is None or initialised
+        if initialised is not None:
+            return initialised
+        required_methods = ('get_tmdb_id', 'get_response_json')
+        return all(hasattr(_TMDb, method) for method in required_methods)
     except Exception:
         return False
 
