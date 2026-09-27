@@ -216,6 +216,19 @@ def test_tmdb_wrapper_and_fallback_skip_when_helper_unavailable(monkeypatch):
     assert result is None
 
 
+def test_tmdb_movie_fallback_skips_when_helper_unavailable(monkeypatch):
+    monkeypatch.setattr(tmdb_helper, 'tmdb_helper_is_available',
+                        lambda: False)
+    monkeypatch.setattr(SETTINGS, 'import_tmdbhelper', True)
+
+    result = state.UpNextState._get_tmdb_movie_now_playing(
+        {'title': 'Unavailable Helper Movie'},
+        '999'
+    )
+
+    assert result is None
+
+
 def test_tmdb_helper_is_available_without_initialised_flag(monkeypatch):
     class DummyTMDb(object):
         def get_tmdb_id(self, *args, **kwargs):

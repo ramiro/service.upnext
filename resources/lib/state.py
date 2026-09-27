@@ -551,8 +551,7 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
                      or utils.get_int(current_video, 'id'))
         if episodeid == constants.UNDEFINED:
             details = api.get_episode_info(tvshowid, season, episode)
-            if (not details and plugin_url
-                    and original_tvshowid != constants.UNDEFINED):
+            if not details and original_tvshowid != constants.UNDEFINED:
                 if library_tvshowid == constants.UNDEFINED:
                     library_tvshowid = cls._get_tvshowid_with_fallbacks(title)
                 if library_tvshowid not in (
