@@ -236,3 +236,18 @@ def test_tmdb_helper_is_unavailable_without_required_api(monkeypatch):
     monkeypatch.setattr(tmdb_helper, '_TMDb', DummyTMDb)
 
     assert tmdb_helper.tmdb_helper_is_available() is False
+
+
+def test_tmdb_helper_is_available_before_initialisation_when_api_exists(monkeypatch):
+    class DummyTMDb(object):
+        _initialised = False
+
+        def get_tmdb_id(self, *args, **kwargs):
+            return None
+
+        def get_response_json(self, *args, **kwargs):
+            return None
+
+    monkeypatch.setattr(tmdb_helper, '_TMDb', DummyTMDb)
+
+    assert tmdb_helper.tmdb_helper_is_available() is True
