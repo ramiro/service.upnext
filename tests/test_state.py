@@ -229,6 +229,45 @@ def test_tmdb_movie_fallback_skips_when_helper_unavailable(monkeypatch):
     assert result is None
 
 
+def test_tmdb_episode_fallback_skips_when_helper_init_fails(monkeypatch):
+    class FailingTMDb(object):
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError('helper init failed')
+
+    monkeypatch.setattr(tmdb_helper, 'tmdb_helper_is_available',
+                        lambda: True)
+    monkeypatch.setattr(tmdb_helper, 'TMDb', FailingTMDb)
+    monkeypatch.setattr(SETTINGS, 'import_tmdbhelper', True)
+
+    result = state.UpNextState._get_tmdb_now_playing(
+        {},
+        'Failing Helper Show',
+        1,
+        2,
+        'plugin.video.elementum'
+    )
+
+    assert result is None
+
+
+def test_tmdb_movie_fallback_skips_when_helper_init_fails(monkeypatch):
+    monkeypatch.setattr(tmdb_helper, 'tmdb_helper_is_available',
+                        lambda: True)
+    monkeypatch.setattr(SETTINGS, 'import_tmdbhelper', True)
+
+    def raise_runtime_error(*args, **kwargs):
+        raise RuntimeError('helper init failed')
+
+    monkeypatch.setattr(tmdb_helper, 'get_item_details', raise_runtime_error)
+
+    result = state.UpNextState._get_tmdb_movie_now_playing(
+        {'title': 'Failing Helper Movie'},
+        '999'
+    )
+
+    assert result is None
+
+
 def test_tmdb_helper_is_available_without_initialised_flag(monkeypatch):
     class DummyTMDb(object):
         def get_tmdb_id(self, *args, **kwargs):

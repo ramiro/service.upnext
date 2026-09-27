@@ -597,21 +597,39 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
             tmdb_id = UpNextState._get_tmdb_from_trakt_prop()
             utils.log('TMDB ID from Trakt property: {0}'.format(tmdb_id), name='UpNextState', level=utils.LOGINFO)
         if not tmdb_id:
-            # pylint: disable-next=no-value-for-parameter
-            tmdb_id = TMDb().get_tmdb_id(
-                tmdb_type='tv', query=title, season=season, episode=episode
-            )
+            try:
+                # pylint: disable-next=no-value-for-parameter
+                tmdb_id = TMDb().get_tmdb_id(
+                    tmdb_type='tv', query=title, season=season, episode=episode
+                )
+            except RuntimeError as error:
+                utils.log(
+                    'Skipping TMDb Helper fallback; helper initialisation failed: {0}'
+                    .format(error),
+                    name='UpNextState',
+                    level=utils.LOGWARNING
+                )
+                return None
             utils.log('TMDB ID from search: {0}'.format(tmdb_id), name='UpNextState', level=utils.LOGINFO)
         if not tmdb_id:
             utils.log('TMDB ID not found', name='UpNextState', level=utils.LOGERROR)
             return None
 
-        current_details = get_item_details('tv', tmdb_id, season, episode)
+        try:
+            current_details = get_item_details('tv', tmdb_id, season, episode)
+            episodes = get_next_episodes(tmdb_id, season, episode)
+        except RuntimeError as error:
+            utils.log(
+                'Skipping TMDb Helper fallback; helper initialisation failed: {0}'
+                .format(error),
+                name='UpNextState',
+                level=utils.LOGWARNING
+            )
+            return None
         if not current_details:
             utils.log('TMDB item details not found', name='UpNextState',
                       level=utils.LOGERROR)
             return None
-        episodes = get_next_episodes(tmdb_id, season, episode)
 
         # Return None if no episodes found
         if not episodes:
@@ -663,11 +681,20 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
                       name='UpNextState', level=utils.LOGWARNING)
             return None
 
-        current_details = get_item_details('movie', tmdb_id)
+        try:
+            current_details = get_item_details('movie', tmdb_id)
+            next_movie = get_next_movie(tmdb_id)
+        except RuntimeError as error:
+            utils.log(
+                'Skipping TMDb Helper movie fallback; helper initialisation failed: {0}'
+                .format(error),
+                name='UpNextState',
+                level=utils.LOGWARNING
+            )
+            return None
         if not current_details:
             return None
 
-        next_movie = get_next_movie(tmdb_id)
         if not next_movie:
             return None
 
