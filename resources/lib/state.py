@@ -482,7 +482,8 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
             if current_video.get(info, '') in values_to_ignore:
                 current_video[info] = value
 
-        tvshowid = current_video.get('tvshowid', constants.UNDEFINED)
+        original_tvshowid = current_video.get('tvshowid', constants.UNDEFINED)
+        tvshowid = original_tvshowid
         title = current_video.get('showtitle')
         season = utils.get_int(current_video, 'season')
         episode = utils.get_int(current_video, 'episode')
@@ -549,9 +550,11 @@ class UpNextState(object):  # pylint: disable=too-many-public-methods
         if episodeid == constants.UNDEFINED:
             details = api.get_episode_info(tvshowid, season, episode)
             if (not details and plugin_url
-                    and current_video.get('tvshowid') != constants.UNDEFINED):
+                    and original_tvshowid != constants.UNDEFINED):
                 fallback_tvshowid = cls._get_tvshowid_with_fallbacks(title)
-                if fallback_tvshowid not in (constants.UNDEFINED, tvshowid):
+                if fallback_tvshowid not in (
+                        constants.UNDEFINED,
+                        original_tvshowid):
                     tvshowid = fallback_tvshowid
                     current_video['tvshowid'] = tvshowid
                     details = api.get_episode_info(tvshowid, season, episode)

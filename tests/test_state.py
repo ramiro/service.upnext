@@ -152,6 +152,50 @@ def test_library_now_playing_keeps_valid_kodi_tvshowid(monkeypatch):
     assert result['episodeid'] == 99
 
 
+def test_library_now_playing_retries_plugin_tvshowid_with_kodi_lookup(monkeypatch):
+    current_video = {
+        'type': 'episode',
+        'mediapath': 'plugin://plugin.video.elementum/play?season=1&episode=2',
+        'file': '',
+        'tvshowid': 901,
+        'showtitle': 'Plugin Show',
+        'season': 1,
+        'episode': 2,
+        'episodeid': constants.UNDEFINED,
+    }
+    episode_info_calls = []
+
+    monkeypatch.setattr(state.api, 'get_now_playing',
+                        lambda properties, retry: current_video.copy())
+    monkeypatch.setattr(
+        state.api,
+        'get_tvshowid',
+        lambda title: 77 if title == 'Plugin Show' else constants.UNDEFINED
+    )
+
+    def fake_get_episode_info(tvshowid, season, episode):
+        episode_info_calls.append((tvshowid, season, episode))
+        if tvshowid == 77:
+            return {
+                'episodeid': 199,
+                'tvshowid': tvshowid,
+                'season': season,
+                'episode': episode,
+                'showtitle': 'Plugin Show',
+            }
+        return None
+
+    monkeypatch.setattr(state.api, 'get_episode_info', fake_get_episode_info)
+
+    result = state.UpNextState._get_library_now_playing(
+        {'item': {'showtitle': 'Plugin Show'}}
+    )
+
+    assert result['tvshowid'] == 77
+    assert result['episodeid'] == 199
+    assert episode_info_calls == [(901, 1, 2), (77, 1, 2)]
+
+
 def test_tmdb_wrapper_and_fallback_skip_when_helper_unavailable(monkeypatch):
     monkeypatch.setattr(tmdb_helper, 'tmdb_helper_is_available',
                         lambda: False)
